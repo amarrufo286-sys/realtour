@@ -1,0 +1,71 @@
+// client/src/components/ChatWindow.jsx
+import React, { useEffect, useRef, useState } from 'react';
+import { useChat } from '../context/ChatProvider';
+import { fetchThread } from '../api/messages';
+
+export const ChatWindow = ({ apiBase, wsBase, me, other }) => {
+  const { messages, send, connect, clear } = useChat();
+  const [input, setInput] = useState('');
+  const listRef = useRef(null);
+
+  useEffect(() => {
+    clear();
+    connect(me, wsBase);
+    (async () => {
+      try {
+        await fetchThread({ apiBase, me, other, limit: 50 });
+        // In a real app you’d merge fetched messages into state here
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, [apiBase, wsBase, me, other]);
+
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSend = async () => {
+    const text = input.trim();
+    if (!text) return;
+    await send(other, text);
+    setInput('');
+  };
+
+  const thread = messages.filter(
+    (m) =>
+      (m.senderId === me && m.receiverId === other) ||
+      (m.senderId === other && m.receiverId === me)
+  );
+
+  return (
+    <div className="flex h-full flex-col border rounded-2xl">
+      <div ref={listRef} className="flex-1 overflow-y-auto p-3 space-y-2">
+        {thread.map((m) => (
+          <div
+            key={m._id}
+            className={`max-w-[75%] p-2 rounded-2xl shadow ${
+              m.senderId === me ? 'ml-auto bg-blue-100' : 'bg-gray-100'
+            }`}
+          >
+            <div className="text-sm whitespace-pre-wrap">{m.text}</div>
+            <div className="text-[11px] opacity-60 mt-1">
+              {new Date(m.createdAt).toLocaleString()}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="p-2 flex gap-2">
+        <input
+          className="flex-1 border rounded-xl px-3 py-2"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Type a message"
+        />
+        <button onClick={handleSend} className="px-4 py-2 rounded-xl bg-blue-600 text-white">
+          Send
+        </button>
+      </div>
+    </div>
+  );
+};
